@@ -3,3 +3,4 @@ numpy
 opencv-python
 streamlit
 scikit-image
+opencv-python-headless
