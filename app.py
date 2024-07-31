@@ -8,6 +8,9 @@ from utils import mse, normalize_mse, transform_ssim, convert_to_native_types, s
 from skimage.metrics import structural_similarity as ssim
 
 password = "8888"
+config_file = "config.yaml"
+default_option = 1
+
 # Ensure the submit folder exists
 submit_folder = "submit"
 if not os.path.exists(submit_folder):
@@ -33,18 +36,29 @@ def load_original_image(option):
     original_image_rgb = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
     return original_image_rgb, original_image
 
+# Function to read config file
+def read_config():
+    if os.path.exists(config_file):
+        with open(config_file, 'r') as file:
+            config = yaml.safe_load(file)
+            return config.get("selected_option", default_option)
+    return default_option
+
+# Function to write config file
+def write_config(option):
+    with open(config_file, 'w') as file:
+        yaml.safe_dump({"selected_option": option}, file)
+
+# Initialize session state
+if "original_image_rgb" not in st.session_state:
+    selected_option = read_config()
+    st.session_state.original_image_rgb, st.session_state.original_image = load_original_image(selected_option)
+
 # Streamlit application
 st.title("이미지 유사도 측정")
 
-# Default original image
-default_original_file_path = "originals/originals_1.jpeg"  # Default original image path
-original_image_rgb = None
-original_image = None
-
-if os.path.exists(default_original_file_path):
-    original_image = cv2.imread(default_original_file_path)
-    original_image_rgb = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
-    st.image(original_image_rgb, caption="원본 이미지", use_column_width=True)
+# Display the current original image
+st.image(st.session_state.original_image_rgb, caption="원본 이미지", use_column_width=True)
 
 # Load current rankings
 rankings = load_rankings()
@@ -62,6 +76,8 @@ if rankings:
     # Create a DataFrame and display the results as a table
     df = pd.DataFrame(rankings)
     df = df[["Name", "SSIM Score (80%)", "MSE Score (20%)", "Final Score (100%)"]]  # Reorder and remove filename
+    df.index = df.index + 1  # Start index at 1
+    df.index.name = "순위"
     st.header("현재 랭킹")
     st.dataframe(df)
 
@@ -78,11 +94,11 @@ if name and file:
             f.write(file.getbuffer())
         st.success(f"파일 업로드가 완료되었습니다.")
 
-        if original_image is None:
+        if st.session_state.original_image is None:
             st.error("원본 이미지가 설정되지 않았습니다. 관리자에게 문의하세요.")
             st.stop()
 
-        gray_original = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+        gray_original = cv2.cvtColor(st.session_state.original_image, cv2.COLOR_BGR2GRAY)
 
         # Read comparison image from the saved file
         image = cv2.imread(file_path)
@@ -136,9 +152,13 @@ if st.checkbox("관리자 모드"):
     if admin_password == password:
         st.header("원본 이미지 선택 (관리자용)")
         option = st.selectbox("원본 이미지를 선택하세요", [1, 2, 3, 4, 5, 6])
+        original_image_rgb, original_image = load_original_image(option)
+        st.image(original_image_rgb, caption=f"선택한 원본 이미지 {option}", use_column_width=True)
         if st.button("적용", key="apply_button"):
-            original_image_rgb, original_image = load_original_image(option)
-            st.image(original_image_rgb, caption=f"선택한 원본 이미지 {option}", use_column_width=True)
+            st.session_state.original_image_rgb, st.session_state.original_image = original_image_rgb, original_image
+            write_config(option)
+            st.success(f"원본 이미지 {option}이(가) 적용되었습니다.")
+            st.query_params.from_dict({"option": option})
 
         st.header("랭킹 초기화")
         reset_password = st.text_input("비밀번호를 입력하세요", type="password", key="reset_password")
