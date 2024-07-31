@@ -1,5 +1,5 @@
 pandas
 numpy
-opencv-python
+opencv-python-headless
 streamlit
 scikit-image
